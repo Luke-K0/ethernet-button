@@ -18,17 +18,17 @@ int panelID = 1;
 //-----------------------------------------------------------------------------------------------
 
 static uint32_t timer;
+static uint32_t timer2;
 
-bool button0Pressed = 0;
-bool button1Pressed = 0;
-int button0State;
-int button1State;
-int state = 0;
-int debugLevel = 0; // 0 - no debug, 1 - button info, 2 - server answer, 4 - full
+static bool ethernetBusy = 0;
+int debugLevel = 2; // 0 - no debug, 1 - button info, 2 - server answer, 4 - full
 
 const char* pId;
 const char* req0;
 const char* req1;
+
+bool button0Pressed;
+bool button1Pressed;
 
 String panelIdString;
 String req0String;
@@ -41,6 +41,14 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel(2, rgbLED, NEO_GRB + NEO_KHZ800);
 //---------------------------------------- json callback ----------------------------------------
 
 static void jsonCallback (byte status, word off, word len) {
+
+  Serial.print("hello from json callback: ");
+  Serial.println(status);
+
+  if (status != 0) {
+    ethernetBusy = 0;
+    return;
+  }
 
   String websiteString;
 
@@ -61,13 +69,9 @@ static void jsonCallback (byte status, word off, word len) {
   if ((debugLevel == 2) || (debugLevel == 4)) {
     Serial.println(openingBracket);
     Serial.println(closingBracket);
-    Serial.println(websiteString);
+    //Serial.println(websiteString);
     Serial.println(json);
   }
-
-  websiteString = "";
-  openingBracket = 0;
-  closingBracket = 0;
 
   StaticJsonBuffer<200> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(json);
@@ -77,7 +81,8 @@ static void jsonCallback (byte status, word off, word len) {
     pixels.setPixelColor(0, 0, 255, 0); // parsing error - red led
     pixels.setPixelColor(1, 0, 255, 0);
     pixels.show();
-    delay(300);
+    //delay(300);
+    ethernetBusy = 0;
     return;
   }
 
@@ -95,25 +100,26 @@ static void jsonCallback (byte status, word off, word len) {
     }
   }
 
+  ethernetBusy = 0;
+
   // Button 0 (request 0)
 
   if ((request0 == true) && (request0Picked == false)) {
     pixels.setPixelColor(0, 255, 255, 0); // button pressed, no confirmation - yellow led
     pixels.show();
-    delay(300);
+    //delay(300);
   }
 
   if ((request0 == true) && (request0Picked == true)) {
     pixels.setPixelColor(0, 255, 0, 0); // button pressed, confirmed - green led
     pixels.show();
-    delay(300);
+    //delay(300);
   }
 
   if (request0 == false) {
     pixels.setPixelColor(0, 0, 0, 255); // idle - blue led
     pixels.show();
-    button0Pressed = 0;
-    delay(300);
+    //delay(300);
   }
 
   // Button 1 (request 1)
@@ -121,35 +127,45 @@ static void jsonCallback (byte status, word off, word len) {
   if ((request1 == true) && (request1Picked == false)) {
     pixels.setPixelColor(1, 255, 255, 0); // button pressed, no confirmation - yellow led
     pixels.show();
-    delay(300);
+    //delay(300);
   }
 
   if ((request1 == true) && (request1Picked == true)) {
     pixels.setPixelColor(1, 255, 0, 0); // button pressed, confirmed - green led
     pixels.show();
-    delay(300);
+    //delay(300);
   }
 
   if (request1 == false) {
     pixels.setPixelColor(1, 0, 0, 255); // idle - blue led
     pixels.show();
-    button1Pressed = 0;
-    delay(300);
+    //delay(300);
   }
+
 }
 
 //------------------------------------- request 0 callback --------------------------------------
 
 static void req0Callback (byte status, word off, word len) {
   Ethernet::buffer[off + len] = 0;
-  delay(500);
+  //delay(500);
+  Serial.print("callback 0 ethernetBusy przed: ");
+  Serial.println(ethernetBusy);
+  ethernetBusy = 0;
+  Serial.print("callback 0 ethernetBusy po: ");
+  Serial.println(ethernetBusy);
 }
 
 //------------------------------------- request 1 callback --------------------------------------
 
 static void req1Callback (byte status, word off, word len) {
   Ethernet::buffer[off + len] = 0;
-  delay(500);
+  //delay(500);
+  Serial.print("callback 1 ethernetBusy przed: ");
+  Serial.println(ethernetBusy);
+  ethernetBusy = 0;
+  Serial.print("callback 1ethernetBusy po: ");
+  Serial.println(ethernetBusy);
 }
 //------------------------------------------- setup ---------------------------------------------
 void setup () {
@@ -192,60 +208,62 @@ void setup () {
 
 void loop() {
 
-  button0State = digitalRead(button0);
-  button1State = digitalRead(button1);
+  int button0State = digitalRead(button0);
+  int button1State = digitalRead(button1);
 
-  if ((debugLevel == 1) || (debugLevel == 4)) {
-    Serial.println("button 0 state");
-    Serial.println(button0State);
-    Serial.println("button 0 pressed");
-    Serial.println(button0Pressed);
-    Serial.println("button 1 state");
-    Serial.println(button1State);
-    Serial.println("button 1 pressed");
-    Serial.println(button1Pressed);
+  if (millis() > timer2) {
+    Serial.print("ethernetBusy: ");
+    Serial.print(ethernetBusy);
+    Serial.println();
+    timer2 = millis() + 100;
   }
+
 
   if (button0State == 0) {
+    pixels.setPixelColor(0, 55, 55, 0); // pressed - tinted yellow led
+    pixels.show();
     button0Pressed = 1;
-    pixels.setPixelColor(0, 0, 0, 55); // pressed - tinted blue led
-    pixels.show();
-    state = 1;
   }
-  else if (button1State == 0) {
-    button1Pressed = 1;
-    pixels.setPixelColor(1, 0, 0, 55); // pressed - tinted blue led
+
+  if (button1State == 0) {
+    pixels.setPixelColor(1, 55, 55, 0); // pressed - tinted yellow led
     pixels.show();
-    state = 2;
+    button1Pressed = 1;
   }
 
   byte len;
   ether.packetLoop(ether.packetReceive());
+
+  //----------------------------------------- request 0 -------------------------------------------
+
+  if (button0Pressed) {
+    ethernetBusy = 1;
+    button0Pressed = 0;
+    Serial.println("Sending request 0:");
+    ether.browseUrl(PSTR("/dispatcher/api/CreateRequest/"), req0, website, req0Callback);
+    delay(1000);
+  }
+
+  //----------------------------------------- request 1 -------------------------------------------
+
+  if (button1Pressed) {
+    ethernetBusy = 1;
+    button1Pressed = 0;
+    Serial.println("Sending request 1:");
+    ether.browseUrl(PSTR("/dispatcher/api/CreateRequest/"), req1, website, req1Callback);
+    delay(1000);
+  }
+
   //----------------------------------- check active requests -------------------------------------
 
-  switch (state)
-  {
-    case 0:
-      if (millis() > timer) {
-        timer = millis() + 10000;
-        ether.browseUrl(PSTR("/dispatcher/api/ActiveRequests/"), pId, website, jsonCallback);
-      }
-      break;
-
-    //----------------------------------------- request 0 -------------------------------------------
-
-    case 1:
-      ether.browseUrl(PSTR("/dispatcher/api/CreateRequest/"), req0, website, req0Callback);
-      ether.packetLoop(ether.packetReceive());
-      state = 0;
-      break;
-
-    //----------------------------------------- request 1 -------------------------------------------
-
-    case 2:
-      ether.browseUrl(PSTR("/dispatcher/api/CreateRequest/"), req1, website, req1Callback);
-      ether.packetLoop(ether.packetReceive());
-      state = 0;
-      break;
+  if (millis() > timer) {
+    ethernetBusy = 1;
+    Serial.println(millis());
+    timer = millis() + 1000;
+    Serial.println("Checking requests:");
+    ether.browseUrl(PSTR("/dispatcher/api/ActiveRequests/"), pId, website, jsonCallback);
   }
+
+  //timeout ??
+
 }
