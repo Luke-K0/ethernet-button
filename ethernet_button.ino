@@ -82,7 +82,7 @@ static void jsonCallback (byte status, word off, word len) {
   else {
     request0 = root["R0"];
     request1 = root["R1"];
-    request0Picked = root["R1P"];
+    request0Picked = root["R0P"];
     request1Picked = root["R1P"];
 
     if ((debugLevel == 2) || (debugLevel == 4)) {
